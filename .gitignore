@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Model weights - downloaded via setup, not committed
+models/*.task
+models/*.onnx
+models/*.pt
+
+# Captured training data
+data/
+
+# Editors / OS
+.vscode/
+.idea/
+Thumbs.db
