@@ -27,11 +27,11 @@
     "float32": "finetuned_rafdb_best.onnx"
   },
   "accuracy": {
-    "float32": 0.8825
+    "float32": 0.9064
   },
-  "quantisation_note": "INT8 post-training quantisation cost 10.5 accuracy points on this backbone (88.2 -> 77.8) with no speedup, so float32 ships. EfficientNet quantises poorly: per-channel range spread in depthwise convolutions plus squeeze-excitation blocks.",
   "hidden": [
     "disgusted"
   ],
-  "hidden_note": "Classes suppressed at inference: their logit is set to -inf before softmax, so probability redistributes across the rest. The model still has the weights; this is a display decision, not a retrain."
+  "hidden_note": "Classes suppressed at inference: logit set to -inf before softmax so probability redistributes across the rest. Display-only; the weights still contain the class.",
+  "quantisation_note": "INT8 post-training quantisation cost 10.5 accuracy points on this backbone (88.2 -> 77.8) with no speedup, so float32 ships. EfficientNet quantises poorly: per-channel range spread in depthwise convolutions plus squeeze-excitation blocks."
 }

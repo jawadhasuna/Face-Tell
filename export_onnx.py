@@ -197,8 +197,17 @@ def main() -> None:
         "variants": {name: path.name for name, path, _, _ in results},
         "accuracy": {name: round(a, 4) for name, _, a, _ in results},
     }
-    (WEB_DIR / "model_meta.json").write_text(json.dumps(meta, indent=2))
-    print(f"\nWrote {WEB_DIR / 'model_meta.json'}")
+    # Merge rather than overwrite: model_meta.json also carries hand-set keys
+    # such as the hidden-class list, which a re-export must not wipe.
+    meta_path = WEB_DIR / "model_meta.json"
+    if meta_path.exists():
+        existing = json.loads(meta_path.read_text())
+        kept = {k: v for k, v in existing.items() if k not in meta}
+        meta = {**kept, **meta}
+        if kept:
+            print(f"\nkept existing keys: {', '.join(kept)}")
+    meta_path.write_text(json.dumps(meta, indent=2))
+    print(f"Wrote {meta_path}")
 
 
 if __name__ == "__main__":
