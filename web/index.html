@@ -155,6 +155,7 @@ button.ghost{background:var(--card); color:var(--ink); font-size:12px; padding:7
       <span class="chip combo">combo<b id="combo">—</b></span>
       <span class="chip">fps<b id="fps">—</b></span>
       <span class="chip">model<b id="infer">—</b></span>
+      <button class="ghost hidden" id="flip">Flip camera</button>
       <button class="ghost hidden" id="toggle">Turn camera off</button>
     </div>
   </header>
@@ -269,6 +270,7 @@ let hist = [], traceLog = [], nervLog = [];
 let fpsAvg = 0, inferAvg = 0, lastT = performance.now();
 let comboName = null, comboStart = 0;
 let running = false, stream = null;
+let facing = "user", hasTwoCameras = false;
 
 const blink = { closed:false, stamps:[] };
 const buf = { gaze:[], label:[], tension:[] };
@@ -479,8 +481,11 @@ async function frame(){
   if (video.readyState < 2){ requestAnimationFrame(frame); return; }
   if (view.width !== video.videoWidth){ view.width = video.videoWidth; view.height = video.videoHeight; }
 
-  vctx.save(); vctx.translate(view.width,0); vctx.scale(-1,1);
-  vctx.drawImage(video,0,0,view.width,view.height); vctx.restore();
+  const mirror = facing !== "environment";
+  vctx.save();
+  if (mirror){ vctx.translate(view.width,0); vctx.scale(-1,1); }
+  vctx.drawImage(video,0,0,view.width,view.height);
+  vctx.restore();
 
   const now = performance.now();
   const res = landmarker.detectForVideo(video, now);
@@ -489,7 +494,7 @@ async function frame(){
     const marks = res.faceLandmarks[0];
     let x0=1,y0=1,x1=0,y1=0;
     for (const p of marks){
-      const fx = 1 - p.x;
+      const fx = mirror ? 1 - p.x : p.x;
       if (fx<x0) x0=fx; if (fx>x1) x1=fx;
       if (p.y<y0) y0=p.y; if (p.y>y1) y1=p.y;
     }
@@ -612,6 +617,7 @@ function stopCamera(){
   $("cam").srcObject = null;
   $("app").classList.add("hidden");
   $("toggle").classList.add("hidden");
+  $("flip").classList.add("hidden");
   $("gate").classList.remove("hidden");
   $("start").disabled = false;
   $("start").textContent = "Start camera";
@@ -621,8 +627,31 @@ function stopCamera(){
 
 async function startCamera(){
   say("asking for the camera…");
-  stream = await navigator.mediaDevices.getUserMedia({
-    video:{ width:640, height:480, facingMode:"user" }, audio:false });
+  // A bare facingMode string is only a hint and some Android browsers ignore
+  // it. `exact` forces the selfie camera, with a fallback for laptops that
+  // have a single camera reporting no facing mode at all.
+  const wanted = {
+    video:{ facingMode:{ exact: facing },
+            width:{ ideal:640 }, height:{ ideal:480 } }, audio:false };
+  try{
+    stream = await navigator.mediaDevices.getUserMedia(wanted);
+  }catch{
+    stream = await navigator.mediaDevices.getUserMedia({
+      video:{ facingMode:{ ideal: facing }, width:{ ideal:640 }, height:{ ideal:480 } },
+      audio:false });
+  }
+  // whichever camera we actually got decides whether to mirror the preview
+  const settings = stream.getVideoTracks()[0]?.getSettings?.() ?? {};
+  if (settings.facingMode) facing = settings.facingMode;
+
+  // Whether a second camera exists only decides if a button is shown, so it
+  // must never block startup: enumerateDevices can stall or be gated.
+  navigator.mediaDevices.enumerateDevices?.()
+    .then(list => {
+      hasTwoCameras = list.filter(d => d.kind === "videoinput").length > 1;
+      if (hasTwoCameras && running) $("flip").classList.remove("hidden");
+    })
+    .catch(() => {});
   $("cam").srcObject = stream;
   await $("cam").play();
   $("gate").classList.add("hidden");
@@ -634,6 +663,14 @@ async function startCamera(){
 }
 
 $("toggle").addEventListener("click", stopCamera);
+
+$("flip").addEventListener("click", async () => {
+  facing = facing === "user" ? "environment" : "user";
+  running = false;
+  stream?.getTracks().forEach(t => t.stop());
+  try{ await startCamera(); }
+  catch(e){ say(e.message, true); stopCamera(); }
+});
 
 $("recal").addEventListener("click", () => {
   baseline = null; calibStart = performance.now(); nervSmooth = 0;
