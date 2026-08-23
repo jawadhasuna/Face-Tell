@@ -1,0 +1,33 @@
+{
+  "classes": [
+    "angry",
+    "disgusted",
+    "fear",
+    "happy",
+    "neutral",
+    "sad",
+    "surprised"
+  ],
+  "img_size": 224,
+  "trained_on": "rafdb",
+  "backbone": "efficientnet_b0",
+  "normalise": {
+    "mean": [
+      0.485,
+      0.456,
+      0.406
+    ],
+    "std": [
+      0.229,
+      0.224,
+      0.225
+    ]
+  },
+  "variants": {
+    "float32": "finetuned_rafdb_best.onnx"
+  },
+  "accuracy": {
+    "float32": 0.8825
+  },
+  "quantisation_note": "INT8 post-training quantisation cost 10.5 accuracy points on this backbone (88.2 -> 77.8) with no speedup, so float32 ships. EfficientNet quantises poorly: per-channel range spread in depthwise convolutions plus squeeze-excitation blocks."
+}

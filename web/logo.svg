@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Face Tell">
+  <rect width="512" height="512" fill="#CFF1F8"/>
+  <circle cx="256" cy="256" r="214" fill="#FFFFFF"/>
+  <circle cx="256" cy="256" r="179" fill="#FFD21E"/>
+  <circle cx="256" cy="256" r="179" fill="none" stroke="#111111" stroke-width="27"/>
+  <circle cx="197" cy="214" r="24" fill="#111111"/>
+  <circle cx="315" cy="214" r="24" fill="#111111"/>
+  <path d="M167 313 Q256 389 345 313" fill="none"
+        stroke="#111111" stroke-width="27" stroke-linecap="round"/>
+</svg>
