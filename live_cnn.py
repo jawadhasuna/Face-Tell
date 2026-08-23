@@ -127,11 +127,19 @@ def main() -> None:
     ap.add_argument("--checkpoint", default="models/finetuned_rafdb_best.pt")
     ap.add_argument("--baseline", default="models/rafdb_blendshape.joblib")
     ap.add_argument("--cpu", action="store_true", help="force CPU inference")
+    ap.add_argument("--hide", nargs="*", default=[],
+                    help="classes to suppress: their logit is set to -inf before "
+                         "softmax, so probability redistributes across the rest. "
+                         "The website hides 'disgusted'; this tool shows everything "
+                         "unless asked, so the full model stays inspectable.")
     args = ap.parse_args()
 
     device = torch.device("cpu" if args.cpu else ("cuda" if torch.cuda.is_available() else "cpu"))
     model, classes, backbone, val_acc = load_cnn(ROOT / args.checkpoint, device)
-    print(f"CNN: {backbone} on {device}, val {val_acc:.1%}, classes {classes}", flush=True)
+    hidden = [i for i, c in enumerate(classes) if c in args.hide]
+    shown = [c for c in classes if c not in args.hide]
+    print(f"CNN: {backbone} on {device}, val {val_acc:.1%}", flush=True)
+    print(f"showing {shown}" + (f", hiding {args.hide}" if hidden else ""), flush=True)
 
     baseline = None
     baseline_path = ROOT / args.baseline
@@ -189,7 +197,10 @@ def main() -> None:
                     # forward pass and removes left/right asymmetry noise.
                     batch = torch.cat([batch, torch.flip(batch, dims=[3])])
                 with torch.no_grad():
-                    probs = TF.softmax(model(batch), dim=1).mean(0).float().cpu().numpy()
+                    logits = model(batch)
+                    if hidden:
+                        logits[:, hidden] = float("-inf")
+                    probs = TF.softmax(logits, dim=1).mean(0).float().cpu().numpy()
                 infer_ms = 0.9 * infer_ms + 0.1 * (time.perf_counter() - t0) * 1000
                 cnn_history.append(probs)
 
@@ -216,13 +227,17 @@ def main() -> None:
                 text(frame, name.upper(), (15, 70), 1.7, COLOURS.get(name, (255, 255, 255)), 3)
                 text(frame, f"{cnn_probs[best]:.0%}  ({backbone}, {infer_ms:.0f} ms)",
                      (15, 104), 0.6, (220, 220, 220), 2)
-                draw_bars(frame, classes, cnn_probs, 15, 140, "FINE-TUNED CNN  90.6%")
+                visible = [(c, cnn_probs[classes.index(c)]) for c in shown]
+                draw_bars(frame, [c for c, _ in visible], [v for _, v in visible],
+                          15, 140, "FINE-TUNED CNN  90.6%")
 
                 if show_baseline and base_history:
                     base_probs = np.mean(base_history, axis=0)
                     bx = frame.shape[1] - 320
-                    draw_bars(frame, classes, base_probs, bx, 140, "BLENDSHAPE BASELINE  73.8%")
-                    other = classes[int(np.argmax(base_probs))]
+                    vis_base = [(c, base_probs[classes.index(c)]) for c in shown]
+                    draw_bars(frame, [c for c, _ in vis_base], [v for _, v in vis_base],
+                              bx, 140, "BLENDSHAPE BASELINE  73.8%")
+                    other = max(shown, key=lambda c: base_probs[classes.index(c)])
                     if other != name:
                         text(frame, f"baseline says: {other}", (bx, 120), 0.5, (60, 200, 255), 1)
         else:

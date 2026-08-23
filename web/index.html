@@ -263,6 +263,7 @@ const inC = document.createElement("canvas");
 const inX = inC.getContext("2d",{willReadFrequently:true});
 
 let meta, session, landmarker, classes, imgSize, colours;
+let shown = [], hiddenIdx = [];
 let meters = [], sigRows = {};
 let hist = [], traceLog = [], nervLog = [];
 let fpsAvg = 0, inferAvg = 0, lastT = performance.now();
@@ -285,7 +286,7 @@ function buildUI(){
   colours = Object.fromEntries(classes.map(c => [c, css(c)]));
 
   $("meters").innerHTML = "";
-  meters = classes.map(name => {
+  meters = shown.map(name => {
     const el = document.createElement("div");
     el.className = "meter";
     el.innerHTML = `<div class="top"><span>${name}</span><span class="v">0%</span></div>
@@ -294,7 +295,7 @@ function buildUI(){
     return { root:el, fill:el.querySelector(".fill"), val:el.querySelector(".v") };
   });
 
-  $("legend").innerHTML = classes
+  $("legend").innerHTML = shown
     .map(c => `<span><i style="background:${colours[c]}"></i>${c}</span>`).join("");
 
   $("n-signals").innerHTML = Object.keys(WEIGHTS).map(k =>
@@ -353,7 +354,8 @@ function drawTrace(){
   if (traceLog.length < 2) return;
 
   const n = traceLog.length;
-  classes.forEach((name, ci) => {
+  shown.forEach(name => {
+    const ci = classes.indexOf(name);
     x.strokeStyle = colours[name]; x.lineWidth = 2; x.lineJoin = "round";
     x.beginPath();
     traceLog.forEach((row, i) => {
@@ -430,6 +432,9 @@ async function init(){
   say("reading model info…");
   meta = await (await fetch("./model_meta.json")).json();
   classes = meta.classes; imgSize = meta.img_size;
+  const hide = meta.hidden ?? [];
+  shown = classes.filter(c => !hide.includes(c));
+  hiddenIdx = classes.map((c,i) => hide.includes(c) ? i : -1).filter(i => i >= 0);
   inC.width = inC.height = imgSize;
   $("acc").textContent = (meta.accuracy.float32*100).toFixed(1) + "%";
   buildUI();
@@ -498,7 +503,9 @@ async function frame(){
     const out = await session.run({ input: tensorFromCrop() });
     inferAvg = inferAvg*.9 + (performance.now()-t0)*.1;
 
-    const probs = softmax(Array.from(out.logits.data));
+    const raw = Array.from(out.logits.data);
+    for (const i of hiddenIdx) raw[i] = -Infinity;   // renormalises the remainder
+    const probs = softmax(raw);
     hist.push(probs); if (hist.length > SMOOTH) hist.shift();
     const p = probs.map((_,i) => hist.reduce((s,r)=>s+r[i],0)/hist.length);
 
@@ -528,9 +535,10 @@ async function frame(){
     $("pct").textContent = `${(conf*100).toFixed(0)}% confident`;
 
     meters.forEach((m,i) => {
-      m.fill.style.width = (p[i]*100).toFixed(1) + "%";
-      m.val.textContent = (p[i]*100).toFixed(0) + "%";
-      m.root.classList.toggle("lead", i === best);
+      const ci = classes.indexOf(shown[i]);
+      m.fill.style.width = (p[ci]*100).toFixed(1) + "%";
+      m.val.textContent = (p[ci]*100).toFixed(0) + "%";
+      m.root.classList.toggle("lead", ci === best);
     });
 
     /* --- arcade combo: how long the same expression has been held --- */
