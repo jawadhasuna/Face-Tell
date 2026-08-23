@@ -1,0 +1,99 @@
+{
+  "csv": "data/affectnet_blendshapes.csv",
+  "test_csv": "",
+  "split": "random",
+  "n_samples": 27699,
+  "classes": [
+    "angry",
+    "disgusted",
+    "fear",
+    "happy",
+    "neutral",
+    "sad",
+    "surprised"
+  ],
+  "scores": {
+    "logistic": {
+      "acc": 0.5163898916967509,
+      "ext_acc": null
+    },
+    "random_forest": {
+      "acc": 0.5511913357400722,
+      "ext_acc": null
+    },
+    "hist_boost": {
+      "acc": 0.5628880866425993,
+      "ext_acc": null
+    },
+    "mlp": {
+      "acc": 0.5373285198555957,
+      "ext_acc": null
+    }
+  },
+  "best": "hist_boost",
+  "confusion": [
+    [
+      424,
+      89,
+      64,
+      27,
+      176,
+      69,
+      49
+    ],
+    [
+      110,
+      252,
+      44,
+      55,
+      111,
+      52,
+      37
+    ],
+    [
+      46,
+      30,
+      442,
+      38,
+      76,
+      55,
+      212
+    ],
+    [
+      12,
+      25,
+      13,
+      1078,
+      89,
+      10,
+      33
+    ],
+    [
+      113,
+      66,
+      40,
+      64,
+      749,
+      129,
+      122
+    ],
+    [
+      98,
+      47,
+      67,
+      35,
+      223,
+      328,
+      54
+    ],
+    [
+      35,
+      23,
+      179,
+      56,
+      117,
+      37,
+      625
+    ]
+  ]
+}

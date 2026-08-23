@@ -1,0 +1,99 @@
+{
+  "csv": "data/rafdb_blendshapes.csv",
+  "test_csv": "",
+  "split": "random",
+  "n_samples": 18329,
+  "classes": [
+    "angry",
+    "disgusted",
+    "fear",
+    "happy",
+    "neutral",
+    "sad",
+    "surprised"
+  ],
+  "scores": {
+    "logistic": {
+      "acc": 0.6308095134191578,
+      "ext_acc": null
+    },
+    "random_forest": {
+      "acc": 0.7139428322059787,
+      "ext_acc": null
+    },
+    "hist_boost": {
+      "acc": 0.73816277547458,
+      "ext_acc": null
+    },
+    "mlp": {
+      "acc": 0.7145974252672922,
+      "ext_acc": null
+    }
+  },
+  "best": "hist_boost",
+  "confusion": [
+    [
+      567,
+      14,
+      4,
+      93,
+      34,
+      87,
+      37
+    ],
+    [
+      74,
+      40,
+      0,
+      35,
+      3,
+      35,
+      4
+    ],
+    [
+      18,
+      1,
+      12,
+      24,
+      2,
+      5,
+      14
+    ],
+    [
+      81,
+      8,
+      5,
+      1105,
+      21,
+      59,
+      20
+    ],
+    [
+      26,
+      1,
+      0,
+      22,
+      1204,
+      14,
+      16
+    ],
+    [
+      169,
+      23,
+      2,
+      88,
+      13,
+      217,
+      19
+    ],
+    [
+      48,
+      2,
+      6,
+      44,
+      17,
+      12,
+      238
+    ]
+  ]
+}
