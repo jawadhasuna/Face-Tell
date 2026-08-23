@@ -38,6 +38,8 @@ def main() -> None:
     p.add_argument("--out", default="combined")
     p.add_argument("--copy", action="store_true",
                    help="copy files instead of hard-linking (uses real disk space)")
+    p.add_argument("--exclude", nargs="*", default=[],
+                   help="class names to leave out of the merged set")
     args = p.parse_args()
 
     out_root = IMAGE_DIR / args.out
@@ -58,6 +60,8 @@ def main() -> None:
 
         for class_dir in sorted(d for d in src_root.iterdir() if d.is_dir()):
             label = class_dir.name
+            if label in args.exclude:
+                continue
             dest_dir = out_root / label
             dest_dir.mkdir(parents=True, exist_ok=True)
 
