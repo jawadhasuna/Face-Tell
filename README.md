@@ -1,6 +1,9 @@
-# FaceTell https://facetell.vercel.app
+# Face Tell
 
-Real-time facial expression recognition and nervousness detection from a webcam.
+**Live: [facetell.vercel.app](https://facetell.vercel.app)**
+
+Real-time facial expression recognition and nervousness detection from a webcam,
+running in the browser.
 
 Two approaches were built and measured against each other: a lightweight
 classifier over MediaPipe's 52 facial-muscle scores, and a fine-tuned
@@ -12,6 +15,22 @@ Everything here was measured rather than assumed. Where a decision turned out
 to be wrong, the wrong version and its number are written down too.
 
 ---
+
+## How it runs
+
+| stage | where | what it does |
+|---|---|---|
+| face tracking | your browser | MediaPipe finds the face and reports 52 muscle scores |
+| expression | your browser | fine-tuned EfficientNet-B0 over ONNX Runtime, ~29ms |
+| nervousness | your browser | arithmetic over time against your own baseline |
+| description | Modal (cloud GPU) | LoRA-tuned Llama-3.2-3B turns the numbers into a sentence |
+
+Only the describer leaves the machine, and it receives **52 numbers, never an
+image**. No video frame is ever uploaded, so "your camera never leaves your
+device" is literal rather than marketing.
+
+The GPU scales to zero, so the first description after an idle period waits
+~30s for a container; subsequent ones take ~3s.
 
 ## Results
 
@@ -29,8 +48,19 @@ All figures are from held-out test splits, logged in [`runs/`](runs/).
 classes happen to be common; on RAF-DB, 57% of images are happy or neutral, so a
 model can score well while being useless at fear.
 
-**The 79.5% model is the one that ships**, despite the 90.6% one existing. See
-[cross-dataset results](#the-cross-dataset-result) below for why.
+**The RAF-DB model is the one deployed**, and the reason is worth stating.
+The merged model generalises better on paper — see
+[cross-dataset results](#the-cross-dataset-result) — but tested side by side on
+an actual webcam, the RAF-DB one read faces noticeably better.
+
+That is not a contradiction. A 640×480 frame in a dim room, cropped to ~200px,
+looks like RAF-DB: soft, low-detail, upscaled from a small original. AffectNet
+is sharp 1547px photography, which no webcam resembles. The merged model spent
+half its capacity learning a domain this app never sees.
+
+So "best model" depends on where it runs. On a better camera the ranking would
+likely flip. The honest framing is that this deployment is tuned to a webcam,
+not that 90.6% is the truer number.
 
 ### Pixels versus blendshapes, per class
 
@@ -169,6 +199,46 @@ What it actually showed:
 
 ---
 
+## The describer
+
+`describe.py` -> `train_describe.py` -> `modal_describe.py`
+
+The classifier answers with one word. A LoRA fine-tune of Llama-3.2-3B turns the
+same measurements into a sentence.
+
+**The dataset had to be invented.** No image-to-sentence dataset exists for
+facial expressions, so descriptions were generated from measurements already
+taken - every clause traces back to a number. Intensity bands come from the
+observed value distribution (69% of readings under 0.05, p90 0.32, p95 0.53,
+p99 0.84), so "faintly" and "strongly" mean something measured.
+
+Two curation passes, both prompted by reading the output:
+
+- gaze direction says where attention is, not what is felt, so `eyeLook*` is
+  demoted and only surfaces when nothing else is active
+- 6,620 rows (14.4%) dropped where the measurement flatly contradicted the
+  label, e.g. `mouthSmile 0.95` on an image labelled fear
+
+**Training:** 3,990 balanced examples, 28 min on an RTX 3050, peak 3.2GB VRAM.
+24.3M of 3.2B parameters trained (0.75%). Loss 3.25 -> 0.29, converged by step
+100 - about 1,600 examples would have been enough.
+
+**It describes muscles well and infers emotion badly.** Given `browDown 0.74,
+mouthPress 0.48, noseSneer 0.21` it produced a perfect description and then
+called it *sad*. The CNN is 90.6% at that job, so the server splits the output
+and the site shows the description with the CNN's label. The model's own verdict
+is returned in the JSON but never displayed.
+
+```
+before fine-tuning:  "Based on the facial muscle activations, this person is
+                      making a slight, subtle smile..."       (mouthSmile 0.88)
+after:               "The mouth corners pulled up very strongly, the eyes
+                      narrowed strongly."
+```
+
+The base model also called `0.33` a "high activation" and `0.41` a "lower" one.
+It knew English; it had no idea what the numbers meant.
+
 ## Nervousness detection
 
 `nervous.py` is not a model. There is no face you can pull that means "nervous";
@@ -209,6 +279,17 @@ Measured: calm 15–20, acting nervous 70.
 | `live.py` | webcam + blendshape classifier |
 | `live_cnn.py` | webcam + fine-tuned CNN, with the baseline side by side |
 | `nervous.py` | temporal nervousness estimation |
+| `export_onnx.py` | PyTorch → ONNX, quantise, and score each variant |
+| `describe.py` | build the description dataset from measured blendshapes |
+| `train_describe.py` | LoRA fine-tune the describer, with before/after samples |
+| `describe_server.py` | serve the describer locally, for `live_cnn.py` |
+| `modal_describe.py` | serve the describer on a cloud GPU, for the website |
+| `web/` | the deployed app: HTML, ONNX model, icons, Vercel headers |
+
+Two virtual environments, deliberately. `.venv` holds the vision stack;
+`.venv-llm` holds Unsloth, which resolves its own torch build and would
+otherwise replace the CUDA one the vision pipeline needs. Installing Unsloth
+into `.venv` silently swapped in a CPU-only torch on the first attempt.
 
 ---
 
@@ -241,10 +322,29 @@ no face data is committed to this repo.
 
 ---
 
+## Deployment notes
+
+**INT8 quantisation was measured and rejected.** The usual claim is 4x smaller
+for ~1% accuracy; on EfficientNet it cost **10.5 points** (88.2% -> 77.8%) with
+no speedup. Depthwise-separable convolutions have wide per-channel ranges and
+squeeze-excitation blocks are rounding-sensitive. float32 ships.
+
+**`vercel.json` sets COOP/COEP**, which is what allows multi-threaded WASM.
+Without those headers onnxruntime-web silently falls back to one thread.
+
+**The crop geometry was measured, not guessed.** Across 199 RAF-DB images the
+training frame is 0.97x the MediaPipe landmark box - the 478 landmarks already
+reach the hairline. An earlier 0.25 margin fed the model a 25%-too-wide view and
+noticeably hurt live accuracy.
+
+**`disgusted` is hidden on the website**, masked at inference by setting its
+logit to -inf so the remaining six renormalise. Display-only; the weights are
+untouched and `live_cnn.py` still shows all seven.
+
 ## Still to do
 
-- Export to ONNX and quantise to INT8 for browser deployment
-- Client-side web app (`onnxruntime-web`) so video never leaves the user's machine
-- Re-wire `nervous.py` onto the CNN instead of the blendshape model
-- Optional: LoRA fine-tune a small vision-language model to describe the
-  expression in words rather than emit a label
+- Retrain the describer with the classifier's label in the prompt, so it stops
+  guessing the emotion it is bad at
+- Collect faces beyond two datasets; cross-dataset accuracy is still ~44%
+- A smaller description model that could run in the browser, removing the last
+  network dependency

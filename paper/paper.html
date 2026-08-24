@@ -1,0 +1,619 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Face Tell — Technical Report</title>
+<style>
+@page { size: A4; margin: 20mm 19mm 22mm 19mm; }
+
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body{
+  margin:0; color:#000; background:#fff;
+  font-family:"Times New Roman",Times,serif;
+  font-size:10.2pt; line-height:1.40;
+  text-align:justify; hyphens:auto; -webkit-hyphens:auto;
+}
+p{ margin:0 0 6pt; }
+p.cont{ text-indent:0; }
+strong{font-weight:bold}
+em{font-style:italic}
+
+/* ---------- title block ---------- */
+.title-block{ text-align:center; margin-bottom:16pt; }
+h1{
+  font-size:17pt; font-weight:bold; line-height:1.2;
+  margin:0 0 6pt; letter-spacing:-0.1pt;
+}
+.subtitle{ font-size:11pt; font-style:italic; margin:0 0 10pt; }
+.authors{ font-size:10.5pt; margin:0 0 3pt; }
+.affil{ font-size:9pt; margin:0 0 2pt; }
+.links{ font-size:8.5pt; font-family:"Courier New",monospace; margin-top:5pt; }
+
+/* ---------- abstract ---------- */
+.abstract{
+  margin:0 22pt 14pt; font-size:9.4pt; line-height:1.38;
+  border-top:0.5pt solid #000; border-bottom:0.5pt solid #000;
+  padding:8pt 0;
+}
+.abstract h2{
+  font-size:9pt; font-weight:bold; text-align:center;
+  text-transform:uppercase; letter-spacing:1pt; margin:0 0 5pt;
+}
+.abstract p{ margin:0 0 5pt; }
+.abstract p:last-child{ margin:0; }
+.keywords{ font-size:8.8pt; margin:0 22pt 16pt; }
+.keywords b{ font-variant:small-caps; }
+
+/* ---------- sections ---------- */
+h2{
+  font-size:11pt; font-weight:bold; margin:13pt 0 5pt;
+  page-break-after:avoid; text-align:left;
+}
+h3{
+  font-size:10pt; font-weight:bold; font-style:italic;
+  margin:9pt 0 3pt; page-break-after:avoid; text-align:left;
+}
+h2 .sn{ margin-right:6pt; }
+h3 .sn{ margin-right:5pt; }
+
+ul{ margin:0 0 6pt; padding-left:16pt; }
+li{ margin-bottom:2.5pt; }
+
+code, .mono{ font-family:"Courier New",monospace; font-size:9pt; }
+
+/* ---------- tables: booktabs ---------- */
+table{
+  border-collapse:collapse; width:100%; margin:0 0 4pt;
+  font-family:"Times New Roman",Times,serif; font-size:9pt;
+  font-variant-numeric:tabular-nums;
+}
+figure{ margin:9pt 0 10pt; page-break-inside:avoid; }
+figure.tbl figcaption{ margin-bottom:4pt; }
+figcaption{
+  font-size:8.6pt; line-height:1.34; text-align:left; margin-top:4pt;
+}
+figcaption b{ font-variant:small-caps; letter-spacing:.3pt; }
+thead th{
+  border-top:1.1pt solid #000; border-bottom:0.5pt solid #000;
+  padding:3.5pt 7pt 3.5pt 0; text-align:left; font-weight:bold; font-size:8.8pt;
+}
+tbody td{ padding:2.8pt 7pt 2.8pt 0; }
+tbody tr:last-child td{ border-bottom:1.1pt solid #000; }
+tr.rule td{ border-top:0.5pt solid #000; }
+td.n, th.n{ text-align:right; padding-right:0; }
+th:last-child, td:last-child{ padding-right:0; }
+.sub{ font-size:8.4pt; }
+
+/* ---------- listing ---------- */
+pre{
+  font-family:"Courier New",monospace; font-size:8.6pt; line-height:1.42;
+  border-top:0.5pt solid #000; border-bottom:0.5pt solid #000;
+  padding:6pt 0; margin:0 0 4pt; white-space:pre-wrap; text-align:left;
+}
+
+/* ---------- finding boxes, kept greyscale ---------- */
+.finding{
+  border:0.6pt solid #000; padding:7pt 9pt; margin:8pt 0 9pt;
+  page-break-inside:avoid;
+}
+.finding h4{
+  font-size:9.2pt; font-weight:bold; margin:0 0 4pt;
+  font-variant:small-caps; letter-spacing:.4pt;
+}
+.finding p{ font-size:9.4pt; margin:0 0 4pt; }
+.finding p:last-child{ margin:0; }
+
+.note{
+  border-left:2pt solid #000; padding:1pt 0 1pt 9pt; margin:7pt 0 8pt;
+  font-size:9.4pt;
+}
+
+/* claim tags, printed as bracketed small caps rather than colour */
+.tag{
+  font-variant:small-caps; font-size:8.4pt; letter-spacing:.5pt;
+  border:0.5pt solid #000; padding:0.5pt 4pt; margin-right:4pt;
+  white-space:nowrap;
+}
+
+.footnotes{
+  margin-top:12pt; padding-top:5pt; border-top:0.5pt solid #000;
+  font-size:8.4pt; line-height:1.4;
+}
+.footnotes p{ margin:0 0 3pt; }
+
+h2, h3, figure, .finding, pre { page-break-inside:avoid; }
+p { orphans:2; widows:2; }
+</style>
+</head>
+<body>
+
+<div class="title-block">
+  <h1>Measuring Face Tell: An End-to-End Facial Expression<br>Pipeline, and Two Problems Found in Its Data</h1>
+  <p class="subtitle">A technical report on what replicated, what failed, and what was contaminated</p>
+  <p class="authors">Jawad Hassan</p>
+  <p class="affil">Independent · August 2026</p>
+  <p class="links">github.com/jawadhasuna/Face-Tell &nbsp;·&nbsp; facetell.vercel.app</p>
+</div>
+
+<div class="abstract">
+  <h2>Abstract</h2>
+  <p>
+    We document a complete facial expression recognition (FER) pipeline built on a single
+    consumer GPU and deployed to the browser, and we report every measurement taken along
+    the way, including the ones that contradicted expectation. Two representations are
+    compared on identical data: MediaPipe's 52 facial-muscle activations with a
+    gradient-boosted classifier, and raw pixels with a fine-tuned EfficientNet-B0. Pixels
+    win by 24.6 points of macro recall, with the gain concentrated almost entirely in the
+    three classes the muscle representation fails at (fear +44, sad +42, disgust +41).
+  </p>
+  <p>
+    The more consequential results are negative. Evaluating across datasets rather than
+    within one, roughly half of measured performance disappears. Investigating that gap
+    surfaced two data problems in widely-downloaded dataset mirrors: 5,130 byte-identical
+    images shared between an AffectNet mirror and a RAF-DB mirror, which silently inflates
+    any cross-corpus evaluation performed on the pair; and a semantic disagreement about
+    the label <i>happy</i> severe enough that a model trained on one scored 0.1% on the
+    other's happy faces. Merging the datasets raised that figure to 94% with no
+    architectural change. We further report a hyperparameter sweep, an INT8 quantisation
+    that cost 10.5 accuracy points rather than the customary one, and a LoRA fine-tune that
+    renders muscle measurements as English sentences.
+  </p>
+</div>
+
+<p class="keywords"><b>Keywords —</b> facial expression recognition, cross-corpus
+generalisation, dataset contamination, transfer learning, blendshapes, LoRA, on-device
+inference.</p>
+
+<h2><span class="sn">1</span>Scope of the claims</h2>
+<p>
+  This report is largely a replication. Stating that first makes the remainder easier to
+  read. Transfer learning outperforming hand-crafted features, cross-corpus degradation in
+  FER, and augmentation disproportionately helping rare classes are all established
+  results; they are reproduced here with measurements because reproducing a known result
+  on one's own data is how one learns whether the pipeline is correct.
+</p>
+<p class="cont">
+  Two findings are, to our knowledge, not previously documented: the dataset contamination
+  and the quantified <i>happy</i> semantic mismatch, both in §5. Three results are
+  negative — a standard technique that did not work here. Each section is tagged
+  accordingly.
+</p>
+
+<h2><span class="sn">2</span>Selecting data by measurement</h2>
+<p><span class="tag">Replication</span>
+  The blendshape representation depends on MediaPipe locating a face; where it cannot, the
+  image contributes nothing. Detection rate was therefore measured before any dataset was
+  downloaded in full.
+</p>
+
+<figure class="tbl">
+  <figcaption><b>Table 1.</b> MediaPipe face detection rate, 120 images per condition.</figcaption>
+  <table>
+    <thead><tr><th>Dataset</th><th>Resolution</th><th class="n">Detected</th><th>Outcome</th></tr></thead>
+    <tbody>
+      <tr><td>FER-2013</td><td>48 × 48</td><td class="n">—</td><td>could not load (script-based repository)</td></tr>
+      <tr><td>RAF-DB</td><td>100 × 100</td><td class="n">85.8%</td><td>usable</td></tr>
+      <tr><td>RAF-DB (upscaled)</td><td>200 × 200</td><td class="n">85.0%</td><td>no improvement</td></tr>
+      <tr><td>AffectNet-HQ</td><td>1547 × 1547</td><td class="n">97.5%</td><td>selected</td></tr>
+    </tbody>
+  </table>
+</figure>
+
+<p>
+  The third row is the informative one: upscaling RAF-DB by 2× changed detection by
+  &minus;0.8%. Interpolation adds no information, so a small original remains a small
+  original. This eliminated FER-2013 — the dataset most FER tutorials adopt — on evidence
+  rather than preference. A follow-up measurement found detection and latency both flat
+  from 256 px to 1547 px (97%, 10–14 ms), because MediaPipe resizes internally; inference
+  was never the bottleneck.
+</p>
+
+<div class="note">
+  <span class="tag">Negative</span> <b>Transfer strategy.</b> Streaming the datasets to
+  avoid disk usage ran at 3.4 images/s, and a 500-image shuffle buffer holding decoded
+  1547 px frames grew to 11 GB of resident memory. Downloading first and processing
+  locally ran at 85 images/s — a 25× difference. Disk was the inexpensive resource.
+</div>
+
+<h2><span class="sn">3</span>Baseline: 52 activations in place of pixels</h2>
+<p><span class="tag">Replication</span>
+  MediaPipe FaceLandmarker emits 52 blendshapes — ARKit-style muscle activations
+  (<code>mouthSmileLeft</code>, <code>browDownRight</code>, <code>jawOpen</code>) in [0,1] —
+  at 26 FPS on CPU. A 640×480 frame comprises 921,600 values; the blendshape vector
+  comprises 52, with subject identity already factored out upstream. Four classifiers were
+  fitted per dataset; gradient boosting won both times.
+</p>
+
+<figure class="tbl">
+  <figcaption><b>Table 2.</b> Blendshape baselines, held-out stratified split. Accuracy (%),
+  with macro recall of the winning model.</figcaption>
+  <table>
+    <thead><tr><th>Dataset</th><th class="n">n</th><th class="n">Logistic</th><th class="n">Forest</th><th class="n">Boosting</th><th class="n">MLP</th><th class="n">Macro</th></tr></thead>
+    <tbody>
+      <tr><td>RAF-DB</td><td class="n">18,329</td><td class="n">63.1</td><td class="n">71.4</td><td class="n"><b>73.8</b></td><td class="n">71.5</td><td class="n">55.6</td></tr>
+      <tr><td>AffectNet</td><td class="n">27,699</td><td class="n">51.6</td><td class="n">55.1</td><td class="n"><b>56.3</b></td><td class="n">53.7</td><td class="n">53.6</td></tr>
+    </tbody>
+  </table>
+</figure>
+
+<p>
+  RAF-DB records 73.8% accuracy against 55.6% macro recall — an 18-point divergence.
+  Fifty-seven percent of its images are <i>happy</i> or <i>neutral</i>, so a model may
+  appear competent while remaining useless on the remainder. AffectNet is near-balanced
+  (1.9:1 against RAF-DB's 17:1) and its two figures nearly agree. Accuracy was misleading
+  on one dataset and honest on the other; macro recall was honest on both, and is used
+  throughout this report.
+</p>
+
+<h3><span class="sn">3.1</span>Partitioning dominates model choice</h3>
+<p>
+  On 2,100 webcam frames of a single subject, a random split yielded 100.0% accuracy and a
+  temporal split 91.8%. Consecutive video frames are near-duplicates, and a random split
+  distributes them across both partitions. The 8.2-point difference is an artefact of
+  partitioning alone.
+</p>
+
+<h2><span class="sn">4</span>Transfer learning: where pixels win</h2>
+<p><span class="tag">Replication</span>
+  EfficientNet-B0 pretrained on ImageNet, its 1000-class head replaced by a 7-class head.
+  Training proceeds in two stages: two epochs with the backbone frozen, so that the
+  randomly initialised head does not propagate large gradients into pretrained features,
+  followed by all 4.0M parameters unfrozen at a reduced learning rate under cosine decay.
+  bfloat16 throughout; peak memory 2.26 GB of 8 GB. Validation accuracy held at 52% across
+  the two frozen epochs and rose 23 points in the single epoch following unfreezing.
+</p>
+
+<figure class="tbl">
+  <figcaption><b>Table 3.</b> Per-class recall (%) on RAF-DB. Both models trained and
+  evaluated on the identical split.</figcaption>
+  <table>
+    <thead><tr><th>Class</th><th class="n">Blendshapes</th><th class="n">CNN</th><th class="n">Δ</th><th class="n">Train n</th></tr></thead>
+    <tbody>
+      <tr><td>neutral</td><td class="n">94</td><td class="n">100</td><td class="n">+6</td><td class="n">5,130</td></tr>
+      <tr><td>happy</td><td class="n">85</td><td class="n">93</td><td class="n">+8</td><td class="n">5,197</td></tr>
+      <tr><td>angry</td><td class="n">68</td><td class="n">76</td><td class="n">+8</td><td class="n">3,343</td></tr>
+      <tr><td>surprised</td><td class="n">65</td><td class="n">88</td><td class="n">+23</td><td class="n">1,466</td></tr>
+      <tr><td>sad</td><td class="n">41</td><td class="n">83</td><td class="n"><b>+42</b></td><td class="n">2,123</td></tr>
+      <tr><td>disgusted</td><td class="n">21</td><td class="n">62</td><td class="n"><b>+41</b></td><td class="n">765</td></tr>
+      <tr><td>fear</td><td class="n">16</td><td class="n">60</td><td class="n"><b>+44</b></td><td class="n">305</td></tr>
+      <tr class="rule"><td><b>macro recall</b></td><td class="n">55.6</td><td class="n">80.2</td><td class="n"><b>+24.6</b></td><td class="n"></td></tr>
+    </tbody>
+  </table>
+</figure>
+
+<p>
+  The distribution of the gain is the result, not its magnitude. Classes the blendshapes
+  already handled improved by approximately 8 points; the three at which they failed
+  improved by 41–44. Disgust and anger share lowered brows and a tightened mouth; fear and
+  surprise share widened eyes and an opened jaw. The features distinguishing each pair —
+  creasing at the nose bridge, the precise curl of the upper lip — do not survive
+  compression into 52 scalars, but do survive in pixels. Note also that fear improved by
+  44 points from only 305 training examples, which indicates the limitation was
+  representational rather than purely one of sample size.
+</p>
+
+<h2><span class="sn">5</span>Cross-dataset evaluation</h2>
+<p><span class="tag">Replication</span><span class="tag">New</span>
+  A held-out split establishes only that a model generalises to further photographs from
+  the same collection. The stricter test is a different collection.
+</p>
+
+<figure class="tbl">
+  <figcaption><b>Table 4.</b> Identical models evaluated on their own held-out split and on
+  a dataset never seen in training.</figcaption>
+  <table>
+    <thead><tr><th>Model</th><th class="n">Own split</th><th class="n">Other dataset</th><th class="n">Retained</th></tr></thead>
+    <tbody>
+      <tr><td>Blendshapes + boosting (RAF-DB)</td><td class="n">73.8</td><td class="n">33.4</td><td class="n">45%</td></tr>
+      <tr><td>EfficientNet-B0 (AffectNet)</td><td class="n">75.3</td><td class="n">≈44</td><td class="n">58%</td></tr>
+    </tbody>
+  </table>
+</figure>
+
+<p>
+  The blendshape model did not degrade gracefully; it collapsed, predicting <i>neutral</i>
+  for nearly all inputs (99.4% recall on neutral, single digits elsewhere). The mechanism
+  is that MediaPipe reports weaker activations from RAF-DB's soft 100 px originals than
+  from AffectNet's sharp ones, so every learned decision threshold falls in the wrong
+  place. Blendshapes are person-independent; they are <i>not</i> capture-independent. This
+  distinction does not appear to be widely stated and is material for any work treating
+  blendshapes as a normalised representation.
+</p>
+
+<div class="finding">
+  <h4>Finding 1 — 5,130 images are shared between the two datasets</h4>
+  <p>
+    Mean blendshape values for <i>neutral</i> agreed to three decimal places across both
+    datasets, and both neutral classes contained exactly 5,130 rows. Hashing the extracted
+    images confirmed 5,130 byte-identical files shared between
+    <span class="mono">Piro17/affectnethq</span> and
+    <span class="mono">deanngkl/raf-db-7emotions</span> — the entire neutral class of one,
+    duplicated in the other. No other class overlaps at all.
+  </p>
+  <p>
+    The consequence is direct: the AffectNet-trained model's apparent 96% cross-dataset
+    transfer on <i>neutral</i> was recognition of images it had trained on. Excluding the
+    contaminated class, honest cross-dataset macro recall is 42.8% rather than the 50.4%
+    the naive evaluation reports. Any cross-corpus result computed on this pair of mirrors
+    is inflated by an amount that depends on how heavily neutral is weighted.
+  </p>
+</div>
+
+<div class="finding">
+  <h4>Finding 2 — the two datasets disagree on the meaning of <i>happy</i></h4>
+  <p>
+    Among the uncontaminated classes one result was anomalous: the AffectNet-trained CNN
+    scored 0.1% on RAF-DB's happy faces — 5 correct of 5,197 — while scoring 60–68% on
+    angry, fear and sad. A uniform domain shift does not destroy exactly one class.
+  </p>
+  <p>
+    Two hypotheses were tested and rejected. Labels are not transposed: both folders
+    visibly contain smiling faces. Resolution is not the cause: degrading AffectNet images
+    to RAF-DB's effective 100 px left happy recall at 95%.
+  </p>
+  <p>
+    The cause is semantic. AffectNet's <i>happy</i> is predominantly a mild, closed-mouth
+    adult smile; RAF-DB's is a wide, toothy laugh, frequently a child's. Measured on the
+    blendshapes, <span class="mono">mouthStretch</span> is 2.8× higher in RAF-DB's happy
+    class. To a model trained on gentle smiles, bared teeth with a stretched mouth read as
+    fear, disgust or anger; its confidences on those misclassifications were 0.34–0.76,
+    indicating uncertainty rather than confident error.
+  </p>
+</div>
+
+<h3><span class="sn">5.1</span>The remedy is data, not architecture</h3>
+<p>
+  Merging both datasets with hash-deduplication (40,665 images retained, 5,363 duplicates
+  discarded) and retraining under identical hyperparameters:
+</p>
+
+<figure class="tbl">
+  <figcaption><b>Table 5.</b> Merged model, per-class recall (%) on the held-out test split,
+  decomposed by source dataset.</figcaption>
+  <table>
+    <thead><tr><th>Class</th><th class="n">AffectNet-origin</th><th class="n">RAF-DB-origin</th></tr></thead>
+    <tbody>
+      <tr><td>happy</td><td class="n">93</td><td class="n">94</td></tr>
+      <tr><td>angry</td><td class="n">65</td><td class="n">85</td></tr>
+      <tr><td>sad</td><td class="n">66</td><td class="n">89</td></tr>
+      <tr><td>surprised</td><td class="n">66</td><td class="n">89</td></tr>
+      <tr><td>fear</td><td class="n">69</td><td class="n">56</td></tr>
+      <tr><td>disgusted</td><td class="n">65</td><td class="n">61</td></tr>
+      <tr class="rule"><td><b>accuracy / macro</b></td><td class="n">76.0 / 73.5</td><td class="n">87.2 / 79.0</td></tr>
+    </tbody>
+  </table>
+</figure>
+
+<p>
+  Happy rose from 0.1% to 94%. The architecture, hyperparameters and epoch count were
+  unchanged; the sole intervention was exposing the model to both definitions of the word.
+  The merged model additionally exceeds the AffectNet specialist on AffectNet's own test
+  split (76.0 against 75.3) while conceding three points on RAF-DB.
+</p>
+<p class="cont">
+  A further data-quality observation: 54 images within AffectNet carry two distinct labels
+  — the same photograph filed as both <i>angry</i> and <i>disgusted</i>, or <i>disgusted</i>
+  and <i>fear</i>. A dataset that disagrees with itself is a useful reminder of why
+  published AffectNet results plateau near 65%, and why human annotators agree only
+  60–65% of the time.
+</p>
+
+<h2><span class="sn">6</span>Hyperparameter sweep</h2>
+<p><span class="tag">Replication</span>
+  One factor varied at a time against a fixed reference configuration (EfficientNet-B0,
+  12 epochs, batch 48, lr 3e-4, medium augmentation, class-weighted loss). Twelve runs,
+  all logged.
+</p>
+
+<figure class="tbl">
+  <figcaption><b>Table 6.</b> Sweep results on RAF-DB, ranked by macro recall. The final
+  column is the train–validation accuracy gap at the last epoch.</figcaption>
+  <table>
+    <thead><tr><th>Configuration</th><th class="n">Test acc.</th><th class="n">Macro</th><th class="n">Gap</th></tr></thead>
+    <tbody>
+      <tr><td>aug = strong</td><td class="n">88.8</td><td class="n"><b>81.8</b></td><td class="n">3.0</td></tr>
+      <tr><td>lr = 1e-3</td><td class="n">88.5</td><td class="n">80.7</td><td class="n">6.4</td></tr>
+      <tr><td>aug = medium (reference)</td><td class="n">88.4</td><td class="n">80.2</td><td class="n">7.2</td></tr>
+      <tr><td>aug = light</td><td class="n">87.2</td><td class="n">79.2</td><td class="n">8.7</td></tr>
+      <tr><td>lr = 1e-4</td><td class="n">84.8</td><td class="n">79.0</td><td class="n">4.5</td></tr>
+      <tr class="rule"><td><b>strong + 1e-3, 30 epochs</b></td><td class="n"><b>90.6</b></td><td class="n"><b>82.7</b></td><td class="n">6.9</td></tr>
+    </tbody>
+  </table>
+</figure>
+
+<p>
+  <b>Learning rate behaves as a threshold, not a dial.</b> 3e-4 and 1e-3 differ by three
+  images of 2,745. At this sample size the 95% confidence interval is ±1.2 points, so the
+  difference is not measurable. Reducing to 1e-4 costs 102 images, which is outside the
+  interval — but its validation curve was still ascending at the final epoch, so 1e-4 is
+  <i>undertrained at 12 epochs</i> rather than inferior. Reading only the final figure
+  would have produced the wrong conclusion.
+</p>
+<p class="cont">
+  <b>Strong augmentation is justified by the rare classes.</b> The accuracy difference
+  between medium and strong (0.4 points, 11 images) lies within noise. What lies outside
+  it is that strong wins on four of seven classes and on all three difficult ones — disgust
+  62→66, fear 60→64, sad 83→85. A single fluctuation moves one figure; this moved a
+  pattern. The train–validation gap simultaneously fell from 8.7 to 3.0.
+</p>
+<p class="cont">
+  Combining both findings produced the best single-dataset result reported here, 90.6%
+  accuracy and 82.7% macro recall, converging at epoch 25. Published RAF-DB results are
+  approximately 88–90%, so this is at the level of the literature and not beyond it.
+</p>
+<p class="cont">
+  Two runs of an identical configuration produced identical figures to four decimal places,
+  which eliminates run-to-run variance as a confound when comparing configurations. It does
+  not eliminate test-set sampling error, which the confidence interval above accounts for.
+</p>
+
+<h2><span class="sn">7</span>Deployment</h2>
+<p><span class="tag">Negative</span>
+  The model was exported to ONNX, agreeing with PyTorch to 1×10<sup>&minus;6</sup>, and
+  quantised to INT8 using per-channel symmetric post-training quantisation calibrated on
+  200 real images. The conventional expectation is approximately 4× compression for about
+  one point of accuracy.
+</p>
+
+<figure class="tbl">
+  <figcaption><b>Table 7.</b> ONNX variants evaluated on the full 2,745-image test set, CPU.</figcaption>
+  <table>
+    <thead><tr><th>Variant</th><th class="n">Size</th><th class="n">Accuracy</th><th class="n">ms / image</th></tr></thead>
+    <tbody>
+      <tr><td>float32</td><td class="n">16.1 MB</td><td class="n"><b>90.6</b></td><td class="n">5.4</td></tr>
+      <tr><td>int8 (PTQ, per-channel)</td><td class="n">4.9 MB</td><td class="n">77.8</td><td class="n">6.1</td></tr>
+    </tbody>
+  </table>
+</figure>
+
+<p>
+  INT8 cost 10.5 accuracy points and delivered no speedup. EfficientNet quantises poorly:
+  depthwise-separable convolutions exhibit widely varying per-channel dynamic ranges, and
+  squeeze-and-excitation blocks with smooth activations are sensitive to rounding. A
+  residual architecture would likely have quantised cleanly. float32 was deployed. The
+  general point is that the customary figure is architecture-dependent and worth measuring
+  rather than citing.
+</p>
+
+<h3><span class="sn">7.1</span>Crop geometry</h3>
+<p>
+  The live pipeline crops a face from the camera frame using MediaPipe landmarks before
+  classification. An initial margin of 0.25, chosen by intuition, visibly degraded accuracy.
+  Measurement across 199 training images established that the training frame is 0.97× the
+  landmark bounding box: the 478 landmarks already extend to the hairline, so the box
+  <i>is</i> the head. The correct margin was 0.00 and the intuition had been inverted.
+</p>
+
+<h3><span class="sn">7.2</span>Model selection is a function of deployment conditions</h3>
+<p>
+  The merged model generalises better by every offline measure. Evaluated side by side on
+  an actual webcam, the RAF-DB model performed noticeably better, and the reason is
+  legible: a 640×480 frame in dim lighting, cropped to roughly 200 px, resembles RAF-DB's
+  soft upscaled originals considerably more than AffectNet's sharp 1547 px photography. The
+  merged model expended half its capacity on a domain the application never encounters. On
+  higher-quality capture the ranking would likely reverse.
+</p>
+
+<h2><span class="sn">8</span>A natural-language describer</h2>
+<p><span class="tag">Replication</span>
+  A classifier emits a single word. To enable the application to explain itself,
+  Llama-3.2-3B-Instruct was LoRA fine-tuned to render the same muscle measurements as a
+  sentence. No image-to-sentence dataset for facial expressions exists, so one was
+  generated from measurements already obtained; every clause traces to a numeric value.
+  Intensity bands (<i>faintly, clearly, strongly, very strongly</i>) were set from the
+  observed value distribution across both datasets: 69% of readings fall below 0.05,
+  p90 = 0.32, p95 = 0.53, p99 = 0.84.
+</p>
+<p class="cont">Two curation passes, both prompted by inspecting generated output:</p>
+<ul>
+  <li>Gaze direction indicates where attention is directed, not what is felt.
+    <span class="mono">eyeLook*</span> signals were demoted so that they surface only when
+    no other signal is active.</li>
+  <li>6,620 rows (14.4%) were discarded where the measurement flatly contradicted the
+    dataset label — for instance <span class="mono">mouthSmile 0.95</span> on an image
+    labelled <i>fear</i>. One of the two is wrong, and training on the pair teaches
+    contradiction.</li>
+</ul>
+<p class="cont">
+  3,990 class-balanced examples, 28 minutes on an RTX 3050, peak 3.2 GB. 24.3M of 3.24B
+  parameters trained (0.75%). Loss fell 3.25 → 0.29 and converged by step 100, indicating
+  that roughly 1,600 examples would have sufficed for what is essentially format learning.
+</p>
+
+<pre>input    mouthSmile 0.88, eyeSquint 0.61, cheekSquint 0.34
+
+before   "Based on the facial muscle activations, this person is making a
+          slight, subtle smile ... the expression appears to be a gentle,
+          slightly annoyed"
+
+after    "The mouth corners pulled up very strongly, the eyes narrowed
+          strongly."</pre>
+<figcaption style="margin-bottom:8pt"><b>Listing 1.</b> Held-out probe before and after
+fine-tuning. The base model characterised an activation of 0.88 as "slight"; on another
+probe it described 0.33 as a "high activation" and 0.41 as "lower".</figcaption>
+
+<div class="finding">
+  <h4>The model describes well and infers poorly</h4>
+  <p>
+    Given <span class="mono">browDown 0.74, mouthPress 0.48, noseSneer 0.21</span> — an
+    anger signature — the model produced an accurate muscle description and then concluded
+    "the overall read is sad." The CNN performs that classification at 90.6%, so the
+    deployed system splits the generated text on its final sentence, displays the
+    description, and takes the label from the CNN. The language model's own verdict is
+    returned in the response and never displayed. Placing the classifier's answer in the
+    prompt would be the better design and remains future work.
+  </p>
+</div>
+
+<h2><span class="sn">9</span>System, limitations, reproducibility</h2>
+
+<figure class="tbl">
+  <figcaption><b>Table 8.</b> Deployed pipeline. Only the describer leaves the device, and
+  it receives 52 numeric values, never an image.</figcaption>
+  <table>
+    <thead><tr><th>Stage</th><th>Location</th><th>Model</th><th class="n">Latency</th></tr></thead>
+    <tbody>
+      <tr><td>Face tracking</td><td>Browser (WASM)</td><td>MediaPipe FaceLandmarker</td><td class="n">≈15 ms</td></tr>
+      <tr><td>Expression</td><td>Browser (WASM, 4 threads)</td><td>EfficientNet-B0 / ONNX fp32</td><td class="n">29 ms</td></tr>
+      <tr><td>Nervousness</td><td>Browser</td><td>none — temporal arithmetic</td><td class="n">&lt;1 ms</td></tr>
+      <tr><td>Description</td><td>Cloud T4, scale-to-zero</td><td>Llama-3.2-3B + LoRA r=16</td><td class="n">3.1 s warm</td></tr>
+    </tbody>
+  </table>
+</figure>
+
+<p>
+  Multi-threaded WASM requires <span class="mono">SharedArrayBuffer</span>, which requires
+  COOP and COEP response headers. Without them onnxruntime-web silently falls back to a
+  single thread, a roughly 3× latency penalty that produces no error.
+</p>
+
+<h3><span class="sn">9.1</span>Nervousness estimation</h3>
+<p>
+  Nervousness is not an expression; no static face denotes it. It is estimated as a
+  weighted deviation from a per-subject 30-second baseline across blink rate (40%), gaze
+  instability (25%), expression churn (20%) and sustained tension classes (15%).
+  Per-subject calibration is not optional: MediaPipe's blink signal peaked at 0.706 on the
+  test camera, so a textbook 0.9 threshold detects no blinks whatsoever. Two calibration
+  runs on the same subject measured resting rates of 9 and 22 blinks/minute, so the score
+  is comparable within a session but not across sessions. Measured values: 15–20 at rest,
+  70 while performing anxiety.
+</p>
+
+<h3><span class="sn">9.2</span>Limitations</h3>
+<ul>
+  <li>Cross-dataset macro recall remains approximately 44%. Two datasets are insufficient,
+    and no claim of general-purpose accuracy is made.</li>
+  <li><span class="mono">Piro17/affectnethq</span> is a curated 27,823-image subset, not the
+    ≈440k AffectNet benchmark; its figures are not comparable to published AffectNet
+    results. RAF-DB figures are approximately comparable.</li>
+  <li>No identity labels are available, so a subject may appear in both the training and
+    test partitions of a single dataset. Within-dataset figures may be slightly optimistic.</li>
+  <li>Both datasets are third-party mirrors of collections normally distributed under
+    signed academic licence. They comprise photographs of real people who did not consent
+    to inclusion in a training set. No face data is redistributed with this work.</li>
+  <li>Finding 1 was established by hashing images after a deterministic resize. Hashing the
+    source archives directly, and confirming the overlap persists in current revisions of
+    both repositories, would strengthen it.</li>
+</ul>
+
+<h3><span class="sn">9.3</span>Reproducibility</h3>
+<p>
+  All twelve training runs are logged as JSON containing the complete configuration,
+  per-epoch history and confusion matrices. The pipeline is deterministic under a fixed
+  seed: two runs of one configuration agreed to four decimal places. Code, logs and the
+  deployed application are available at the addresses given beneath the title.
+</p>
+
+<div class="footnotes">
+  <p><b>Hardware and software.</b> NVIDIA RTX 3050 (8 GB, 9.6 TFLOPS fp16), Windows 11,
+  Python 3.12, PyTorch 2.11+cu128, MediaPipe 1.0.1, scikit-learn 1.9, onnxruntime-web 1.27,
+  Unsloth 2026.8.19. Total compute for every result reported here is under six GPU-hours.</p>
+  <p><b>Datasets.</b> RAF-DB (Li &amp; Deng, Beijing University of Posts and
+  Telecommunications) and AffectNet (Mollahosseini, Hasani &amp; Mahoor, University of
+  Denver), accessed as third-party HuggingFace mirrors
+  <span class="mono">deanngkl/raf-db-7emotions</span> and
+  <span class="mono">Piro17/affectnethq</span>.</p>
+</div>
+
+</body>
+</html>
