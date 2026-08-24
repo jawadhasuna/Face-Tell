@@ -2,7 +2,14 @@
 __pycache__/
 *.py[cod]
 .venv/
+.venv-llm/
 venv/
+
+# LoRA adapters and merged models from the description fine-tune
+outputs/
+lora/
+*.gguf
+unsloth_compiled_cache/
 
 # Model weights - downloaded via setup, not committed
 models/*.task

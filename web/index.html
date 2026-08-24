@@ -126,6 +126,20 @@ canvas{display:block; width:100%; height:auto}
 .sig .track{height:11px}
 .sig .val{text-align:right; font-variant-numeric:tabular-nums; color:var(--ink)}
 
+/* ---------- explain strip ---------- */
+.explain{
+  margin-top:14px; background:var(--card); border:1.5px solid var(--line);
+  border-radius:18px; padding:14px 16px; box-shadow:var(--shadow);
+  display:grid; grid-template-columns:auto minmax(0,1fr); gap:16px; align-items:center;
+}
+@media (max-width:760px){ .explain{grid-template-columns:1fr} }
+.explain .say{font-size:16px; line-height:1.55; min-height:24px}
+.explain .say .quiet{color:var(--muted); font-size:13.5px}
+.explain .verdict-line{margin-top:6px; font-size:12.5px; color:var(--muted)}
+.explain .verdict-line b{color:var(--ink); text-transform:lowercase}
+.dots::after{content:""; animation:dots 1.2s steps(4,end) infinite}
+@keyframes dots{0%{content:""}25%{content:"."}50%{content:".."}75%{content:"..."}}
+
 /* ---------- start / status ---------- */
 .gate{text-align:center; padding:26px 0 6px}
 button{
@@ -196,6 +210,21 @@ button.ghost{background:var(--card); color:var(--ink); font-size:12px; padding:7
       </div>
     </div>
 
+    <div class="explain">
+      <div>
+        <button class="ghost" id="explain-btn">Explain this face</button>
+        <div style="margin-top:6px; font-size:10.5px; color:var(--muted); max-width:170px; line-height:1.45">
+          Sends the 52 muscle numbers only. Never the image.
+        </div>
+      </div>
+      <div>
+        <div class="say" id="explain-out">
+          <span class="quiet">A language model fine-tuned on these measurements will describe what your face is doing.</span>
+        </div>
+        <div class="verdict-line hidden" id="explain-verdict"></div>
+      </div>
+    </div>
+
     <div class="band" id="band">
       <h2>Nervousness</h2>
       <div class="band-grid">
@@ -236,6 +265,33 @@ import { FilesetResolver, FaceLandmarker }
 
 const ORT = "1.27.0";
 const MP  = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1";
+const DESCRIBE_URL =
+  "https://jawadhassanbusiness--facetell-describe-describer-describe.modal.run";
+
+/* The describer was trained on grouped signal names with left/right averaged
+   ("browDown", not "browDownLeft"). Sending raw MediaPipe names makes it
+   improvise - "the brows pulled down strongly on the left" - and waste its
+   three slots on one muscle. This mirrors group_signals() in describe.py. */
+const DESCRIBED = new Set([
+  "mouthSmile","mouthFrown","mouthPucker","mouthPress","mouthStretch",
+  "mouthShrugLower","mouthShrugUpper","mouthUpperUp","mouthLowerDown",
+  "mouthDimple","mouthRollLower","mouthRollUpper","mouthFunnel","mouthClose",
+  "jawOpen","jawForward","browDown","browInnerUp","browOuterUp",
+  "eyeSquint","eyeWide","eyeBlink","eyeLookDown","eyeLookUp","eyeLookIn",
+  "eyeLookOut","cheekSquint","cheekPuff","noseSneer",
+]);
+
+function groupSignals(shapes){
+  const sums = {}, counts = {};
+  for (const [name, value] of Object.entries(shapes)){
+    const base = name.replace(/(Left|Right)$/, "");
+    if (!DESCRIBED.has(base)) continue;
+    sums[base] = (sums[base] ?? 0) + value;
+    counts[base] = (counts[base] ?? 0) + 1;
+  }
+  return Object.fromEntries(
+    Object.entries(sums).map(([k, v]) => [k, v / counts[k]]));
+}
 
 /* Crop geometry measured against 199 RAF-DB training images: the frame is
    0.97x the landmark box, centred 0.034 x side above it. Mirrors live_cnn.py. */
@@ -269,6 +325,7 @@ let meters = [], sigRows = {};
 let hist = [], traceLog = [], nervLog = [];
 let fpsAvg = 0, inferAvg = 0, lastT = performance.now();
 let comboName = null, comboStart = 0;
+let latestShapes = null, latestLabel = null, latestConf = 0;
 let running = false, stream = null;
 let facing = "user", hasTwoCameras = false;
 
@@ -521,6 +578,7 @@ async function frame(){
     const bsList = res.faceBlendshapes?.[0]?.categories ?? [];
     const bs = Object.fromEntries(bsList.map(c => [c.categoryName, c.score]));
     drawMirror(bs);
+    latestShapes = bs; latestLabel = name; latestConf = conf;
 
     const shut = ((bs.eyeBlinkLeft ?? 0) + (bs.eyeBlinkRight ?? 0))/2;
     if (!blink.closed && shut > BLINK_CLOSE){ blink.closed = true; blink.stamps.push({t:now}); }
@@ -663,6 +721,46 @@ async function startCamera(){
 }
 
 $("toggle").addEventListener("click", stopCamera);
+
+$("explain-btn").addEventListener("click", async () => {
+  if (!latestShapes){ $("explain-out").textContent = "No face detected yet."; return; }
+
+  // Snapshot now: the face keeps moving while the request is in flight, and
+  // the sentence should describe what was on screen when the button was hit.
+  const readings = Object.fromEntries(
+    Object.entries(groupSignals(latestShapes)).filter(([, v]) => v >= 0.05));
+  const label = latestLabel, conf = latestConf;
+
+  const btn = $("explain-btn"), out = $("explain-out"), line = $("explain-verdict");
+  btn.disabled = true;
+  line.classList.add("hidden");
+  out.innerHTML = '<span class="quiet dots">thinking</span>';
+  // The GPU scales to zero, so a first request after idle has to wake one.
+  const slow = setTimeout(() => {
+    out.innerHTML = '<span class="quiet dots">waking a GPU, this first one takes ~30 seconds</span>';
+  }, 4000);
+
+  try{
+    const res = await fetch(DESCRIBE_URL, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ readings }),
+    });
+    const data = await res.json();
+    clearTimeout(slow);
+    if (data.error) throw new Error(data.error);
+
+    out.textContent = data.description;
+    line.innerHTML = `the classifier says <b style="color:${colours[label]}">${label}</b> `
+                   + `at ${(conf * 100).toFixed(0)}% — the sentence above describes the muscles, `
+                   + `the label comes from the image model`;
+    line.classList.remove("hidden");
+  }catch(err){
+    clearTimeout(slow);
+    out.innerHTML = `<span class="quiet">could not reach the describer: ${err.message}</span>`;
+  }finally{
+    btn.disabled = false;
+  }
+});
 
 $("flip").addEventListener("click", async () => {
   facing = facing === "user" ? "environment" : "user";
